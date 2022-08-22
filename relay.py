@@ -1,20 +1,18 @@
 from __future__ import annotations
-
-import os
 from dataclasses import asdict, dataclass
 from enum import Enum
+import os
 from pathlib import Path
 from typing import Any, List, Literal, Optional, Tuple, Union
 
-import torch
-import wandb
 from diffusers import schedulers  # type: ignore
 from diffusers.pipelines import StableDiffusionPipeline  # type: ignore
 from loguru import logger
-from torch.amp.autocast_mode import autocast
-
 from ranzen import implements
 from ranzen.hydra import Option, Relay
+import torch
+from torch.amp.autocast_mode import autocast
+import wandb
 
 __all__ = ["StableDiffusionRelay"]
 
@@ -96,6 +94,7 @@ class StableDiffusionRelay(Relay):
         pipe = StableDiffusionPipeline.from_pretrained(  # type: ignore
             self.model.value,
             scheduler=self.scheduler,
+            torch_dtype=torch.float16,
             use_auth_token=True,
         )
         assert isinstance(pipe, StableDiffusionPipeline)
@@ -109,7 +108,6 @@ class StableDiffusionRelay(Relay):
             )
             images = output["sample"][0]  # type: ignore
             images_wandb = [
-                wandb.Image(image, caption=prompt)
-                for image, prompt in zip(images, self.prompt)
+                wandb.Image(image, caption=prompt) for image, prompt in zip(images, self.prompt)
             ]
         wandb.log({"generated_images": images_wandb})
