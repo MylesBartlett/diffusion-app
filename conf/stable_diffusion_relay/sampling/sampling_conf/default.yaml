@@ -1,9 +1,0 @@
----
-defaults:
-  - /schema/sampling: sampling_conf
-  - _self_
-height: 512
-width: 512
-num_inference_steps: 50
-guidance_scale: 7.5
-eta: 0.0
