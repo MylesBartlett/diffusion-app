@@ -1,0 +1,18 @@
+---
+defaults:
+  - /schema/wandb: wandb_conf
+  - _self_
+_target_: 'wandb.init'
+name: null
+mode: 'online'
+id: null
+anonymous: null
+project: 'stable-diffusion'
+group: null
+entity: 'predictive-analytics-lab'
+tags: null
+reinit: false
+job_type: null
+resume: null
+dir: null
+notes: null

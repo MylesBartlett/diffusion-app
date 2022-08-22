@@ -1,0 +1,7 @@
+---
+defaults:
+  - relay_schema
+  - _self_
+  - scheduler: 
+  - wandb: wandb_conf/default
+  - sampling: sampling_conf/default
