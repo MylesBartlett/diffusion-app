@@ -8,6 +8,6 @@ __all__ = [
 
 
 class LocalSearchPathPlugin(SearchPathPlugin):
-    implements(SearchPathPlugin)
+    @implements(SearchPathPlugin)
     def manipulate_search_path(self, search_path: ConfigSearchPath) -> None:
-        search_path.prepend(provider="tti-diffusion", path="file://static_confs")
+        search_path.prepend(provider="diffusion-app", path="file://static_confs")
