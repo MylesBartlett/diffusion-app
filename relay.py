@@ -118,7 +118,7 @@ class StableDiffusionRelay(Relay):
         logger.info(f"Run config: {raw_config_str}")
         wandb.config.update(raw_config)
         logger.info(
-            f"Loading pretrained model '{self.model.value}' using cache directory "
+            f"Loading pretrained model '{self.model.value}' with cache directory "
             f"'{Path(self.cache_dir).resolve()}'; will attempt to download the model if no "
             "existing download is found."
         )
@@ -142,7 +142,6 @@ class StableDiffusionRelay(Relay):
             # Tile the prompts by ``repeats`` by interleaving, such that all repeats of a single
             # prompt are contiguous.
             prompt_ls = list(chain.from_iterable(zip(*(prompt_ls for _ in range(self.repeats)))))
-        images = []
         # Group the prompts into batches.
         batches = [
             prompt_ls[i * self.batch_size : (i + 1) * self.batch_size]
@@ -157,10 +156,9 @@ class StableDiffusionRelay(Relay):
                         generator=generator,
                         output_type="pil",  # type: ignore
                     )
-                    images.extend(output["sample"])
+                    images = output["sample"]
+                    images_wandb = [
+                        wandb.Image(image, caption=prompt) for image, prompt in zip(images, batch)
+                    ]
+                    wandb.log({"samples": images_wandb})
                     pbar.update()
-        images_wandb = [
-            wandb.Image(image, caption=prompt) for image, prompt in zip(images, prompt_ls)
-        ]
-        logger.info(f"Finished sampling; logging sampled images to wandb.")
-        wandb.log({"samples": images_wandb})
