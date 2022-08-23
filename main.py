@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from diffusers import schedulers  # type: ignore
-from relay import StableDiffusionRelay
-
 from ranzen.hydra import Option
+
+from relay import StableDiffusionRelay
 
 
 def main() -> None:

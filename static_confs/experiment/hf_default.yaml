@@ -1,0 +1,14 @@
+# @package _global_
+
+# usage: +experiment=hg_default
+
+defaults:
+    - override /scheduler: lms
+    - _self_
+
+prompt: a photo of an astronaut riding a horse on mars
+model: V1_4
+scheduler:
+    beta_start: 0.00085
+    beta_end: 0.012
+    beta_schedule: scaled_linear
