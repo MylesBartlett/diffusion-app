@@ -5,7 +5,7 @@ from enum import Enum
 from itertools import chain
 import json
 from pathlib import Path
-from typing import Any, ClassVar, List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 from diffusers import schedulers  # type: ignore
 from diffusers.pipelines import StableDiffusionPipeline  # type: ignore
