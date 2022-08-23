@@ -7,7 +7,6 @@ from typing import Any, List, Literal, Optional, Tuple, Union
 
 from diffusers import schedulers  # type: ignore
 from diffusers.pipelines import StableDiffusionPipeline  # type: ignore
-from diffusers.utils import DIFFUSERS_CACHE  # type: ignore
 from loguru import logger
 from omegaconf import MISSING
 from ranzen import implements
@@ -19,7 +18,7 @@ import wandb
 __all__ = ["StableDiffusionRelay"]
 
 
-class SdCheckpoint(Enum):
+class StableDiffusionModel(Enum):
     V1_1 = "CompVis/stable-diffusion-v1-1"
     V1_2 = "CompVis/stable-diffusion-v1-2"
     V1_3 = "CompVis/stable-diffusion-v1-3"
@@ -63,6 +62,12 @@ def _clean_up_dict(obj: Any) -> Any:
     return obj
 
 
+class Dtype(Enum):
+    F16 = torch.float16
+    F32 = torch.float32
+    BF16 = torch.bfloat16
+
+
 @dataclass
 class StableDiffusionRelay(Relay):
     wandb: Union[
@@ -77,9 +82,10 @@ class StableDiffusionRelay(Relay):
         schedulers.PNDMScheduler,
     ] = MISSING
     prompt: Union[str, Tuple[str]] = MISSING
-    model: SdCheckpoint = SdCheckpoint.V1_4
+    model: StableDiffusionModel = StableDiffusionModel.V1_4
     device: Union[int, Literal["cpu"]] = 0
-    cache_dir: str = DIFFUSERS_CACHE
+    cache_dir: str = ".model_cache"
+    dtype: Dtype = Dtype.F16
 
     @classmethod
     @implements(Relay)
@@ -111,13 +117,13 @@ class StableDiffusionRelay(Relay):
         pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(  # type: ignore
             self.model.value,
             scheduler=self.scheduler,
-            torch_dtype=torch.float16,
+            torch_dtype=self.dtype.value,
             use_auth_token=True,
             cache_dir=self.cache_dir,
         )
         device = torch.device(self.device)
         pipe.to(device)
-        logger.info(f"Using device {device}.")
+        logger.info(f"Using device '{device}'.")
 
         prompt_str = self.prompt if isinstance(self.prompt, str) else "\n".join(self.prompt)
         logger.info(f"Beginning text-to-image sampling with text prompt(s):\n{prompt_str}")
@@ -128,6 +134,8 @@ class StableDiffusionRelay(Relay):
                 output_type="pil",  # type: ignore
             )
             images = output["sample"][0]  # type: ignore
+            if not isinstance(images, list):
+                images = [images]
             images_wandb = [
                 wandb.Image(image, caption=prompt) for image, prompt in zip(images, self.prompt)
             ]
