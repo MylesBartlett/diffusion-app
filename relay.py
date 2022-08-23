@@ -2,8 +2,10 @@ from __future__ import annotations
 from collections.abc import MutableMapping
 from dataclasses import asdict, dataclass
 from enum import Enum
+from itertools import chain
+import json
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Tuple, Union
+from typing import Any, List, Literal, Optional, Union, ClassVar
 
 from diffusers import schedulers  # type: ignore
 from diffusers.pipelines import StableDiffusionPipeline  # type: ignore
@@ -13,6 +15,7 @@ from ranzen import implements
 from ranzen.hydra import Option, Relay
 import torch
 from torch.amp.autocast_mode import autocast
+from tqdm import tqdm # type: ignore
 import wandb
 
 __all__ = ["StableDiffusionRelay"]
@@ -70,6 +73,8 @@ class Dtype(Enum):
 
 @dataclass
 class StableDiffusionRelay(Relay):
+    _PBAR_COL: ClassVar[str] = "#ffe252"
+
     wandb: Union[
         wandb.sdk.wandb_run.Run,  # type: ignore
         wandb.sdk.lib.disabled.RunDisabled,  # type: ignore
@@ -81,11 +86,14 @@ class StableDiffusionRelay(Relay):
         schedulers.LMSDiscreteScheduler,
         schedulers.PNDMScheduler,
     ] = MISSING
-    prompt: Union[str, Tuple[str]] = MISSING
+    prompt: Union[str, List[str]] = MISSING
     model: StableDiffusionModel = StableDiffusionModel.V1_4
     device: Union[int, Literal["cpu"]] = 0
     cache_dir: str = ".model_cache"
     dtype: Dtype = Dtype.F16
+    seed: Optional[int] = None
+    repeats: int = 1
+    batch_size: int = 1
 
     @classmethod
     @implements(Relay)
@@ -107,37 +115,55 @@ class StableDiffusionRelay(Relay):
 
     @implements(Relay)
     def run(self, raw_config: dict[str, Any]) -> None:
-        logger.info(f"Run config:\n'{_clean_up_dict(raw_config)}'")
+        raw_config_str = json.dumps(_clean_up_dict(raw_config), sort_keys=True, indent=4)
+        logger.info(f"Run config: {raw_config_str}")
         wandb.config.update(raw_config)
         logger.info(
             f"Loading pretrained model '{self.model.value}' using cache directory "
             f"'{Path(self.cache_dir).resolve()}'; will attempt to download the model if no "
             "existing download is found."
         )
+        device = torch.device(self.device)
+        logger.info(f"Running on device '{device}'.")
         pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(  # type: ignore
             self.model.value,
             scheduler=self.scheduler,
             torch_dtype=self.dtype.value,
             use_auth_token=True,
             cache_dir=self.cache_dir,
-        )
-        device = torch.device(self.device)
-        pipe.to(device)
-        logger.info(f"Using device '{device}'.")
+        ).to(device)
 
-        prompt_str = self.prompt if isinstance(self.prompt, str) else "\n".join(self.prompt)
-        logger.info(f"Beginning text-to-image sampling with text prompt(s):\n{prompt_str}")
-        with autocast("cuda"):
-            output = pipe(
-                prompt=list(self.prompt),
-                **asdict(self.sampler),
-                output_type="pil",  # type: ignore
-            )
-            images = output["sample"][0]  # type: ignore
-            if not isinstance(images, list):
-                images = [images]
-            images_wandb = [
-                wandb.Image(image, caption=prompt) for image, prompt in zip(images, self.prompt)
-            ]
-        logger.info(f"Finished sampling; logging images to wandb.")
-        wandb.log({"generated_images": images_wandb})
+        generator = None if self.seed is None else torch.Generator(device=device).manual_seed(self.seed)
+        prompt_ls = [self.prompt] if isinstance(self.prompt, str) else self.prompt
+        prompt_str = "\n- ".join(prompt_ls)
+        if self.repeats > 1:
+            # Tile the prompts by ``repeats`` by interleaving, such that all repeats of a single
+            # prompt are contiguous.
+            prompt_ls = list(chain.from_iterable(zip(*(prompt_ls for _ in range(self.repeats)))))
+        images = []
+        # Group the prompts into batches.
+        batches = [
+            prompt_ls[i * self.batch_size : (i + 1) * self.batch_size]
+            for i in range((len(prompt_ls) + self.batch_size - 1) // self.batch_size)
+        ]
+        with tqdm(
+            total=len(batches),
+            desc="Sampling",
+            colour=self._PBAR_COL,
+            leave=True,
+        ) as pbar:
+            with autocast("cuda"):
+                for batch in batches:
+                    output = pipe(
+                        prompt=batch,
+                        **asdict(self.sampler),
+                        generator=generator,
+                        output_type="pil",  # type: ignore
+                    )
+                    images.extend(output["sample"])
+                    pbar.update()
+        images_wandb = [
+            wandb.Image(image, caption=prompt) for image, prompt in zip(images, prompt_ls)
+        ]
+        logger.info(f"Finished sampling; logging sampled images to wandb.")
+        wandb.log({"samples": images_wandb})
