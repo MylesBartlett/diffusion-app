@@ -3,7 +3,6 @@ from collections.abc import MutableMapping
 from dataclasses import asdict, dataclass
 from enum import Enum
 from itertools import chain
-import json
 from pathlib import Path
 from typing import Any, List, Literal, Optional, Union
 
@@ -93,8 +92,8 @@ class StableDiffusionRelay(Relay):
     repeats: int = 1
     batch_size: int = 1
     revision: Optional[str] = None
-    local_files_only: bool = False
-    use_auth_token: bool = True
+    local_files_only: bool = True
+    use_auth_token: bool = False
 
     @classmethod
     @implements(Relay)
@@ -116,8 +115,7 @@ class StableDiffusionRelay(Relay):
 
     @implements(Relay)
     def run(self, raw_config: dict[str, Any]) -> None:
-        raw_config_str = json.dumps(_clean_up_dict(raw_config), sort_keys=True, indent=4)
-        logger.info(f"Run config: {raw_config_str}")
+        logger.info(f"Run config: {_clean_up_dict(raw_config)}")
         wandb.config.update(raw_config)
         logger.info(
             f"Loading pretrained model '{self.model.value}' with cache directory "
