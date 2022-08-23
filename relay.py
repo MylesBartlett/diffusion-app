@@ -5,7 +5,7 @@ from enum import Enum
 from itertools import chain
 import json
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Union, ClassVar
+from typing import Any, ClassVar, List, Literal, Optional, Union
 
 from diffusers import schedulers  # type: ignore
 from diffusers.pipelines import StableDiffusionPipeline  # type: ignore
@@ -15,7 +15,7 @@ from ranzen import implements
 from ranzen.hydra import Option, Relay
 import torch
 from torch.amp.autocast_mode import autocast
-from tqdm import tqdm # type: ignore
+from tqdm import tqdm  # type: ignore
 import wandb
 
 __all__ = ["StableDiffusionRelay"]
@@ -73,8 +73,6 @@ class Dtype(Enum):
 
 @dataclass
 class StableDiffusionRelay(Relay):
-    _PBAR_COL: ClassVar[str] = "#333300"
-
     wandb: Union[
         wandb.sdk.wandb_run.Run,  # type: ignore
         wandb.sdk.lib.disabled.RunDisabled,  # type: ignore
@@ -94,6 +92,7 @@ class StableDiffusionRelay(Relay):
     seed: Optional[int] = None
     repeats: int = 1
     batch_size: int = 1
+    revision: Optional[str] = None
 
     @classmethod
     @implements(Relay)
@@ -131,9 +130,12 @@ class StableDiffusionRelay(Relay):
             torch_dtype=self.dtype.value,
             use_auth_token=True,
             cache_dir=self.cache_dir,
+            revision=self.revision,
         ).to(device)
 
-        generator = None if self.seed is None else torch.Generator(device=device).manual_seed(self.seed)
+        generator = (
+            None if self.seed is None else torch.Generator(device=device).manual_seed(self.seed)
+        )
         prompt_ls = [self.prompt] if isinstance(self.prompt, str) else self.prompt
         prompt_str = "\n- ".join(prompt_ls)
         if self.repeats > 1:
@@ -146,12 +148,7 @@ class StableDiffusionRelay(Relay):
             prompt_ls[i * self.batch_size : (i + 1) * self.batch_size]
             for i in range((len(prompt_ls) + self.batch_size - 1) // self.batch_size)
         ]
-        with tqdm(
-            total=len(batches),
-            desc="Sampling batches",
-            colour=self._PBAR_COL,
-            leave=True,
-        ) as pbar:
+        with tqdm(total=len(batches), desc="Sampling batches", leave=True) as pbar:
             with autocast("cuda"):
                 for batch in batches:
                     output = pipe(
