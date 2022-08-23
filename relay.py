@@ -73,7 +73,7 @@ class Dtype(Enum):
 
 @dataclass
 class StableDiffusionRelay(Relay):
-    _PBAR_COL: ClassVar[str] = "#ffe252"
+    _PBAR_COL: ClassVar[str] = "#4C4C00"
 
     wandb: Union[
         wandb.sdk.wandb_run.Run,  # type: ignore
