@@ -1,0 +1,10 @@
+#!/bin/bash
+# --- slurm settings ---
+#SBATCH --partition=goedel
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=6
+#SBATCH --job-name=stable-diffusion
+#SBATCH --output=./logs/%j.out
+# ----------------------
+
+python -u main.py device=0 "$@"
