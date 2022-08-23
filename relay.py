@@ -93,6 +93,8 @@ class StableDiffusionRelay(Relay):
     repeats: int = 1
     batch_size: int = 1
     revision: Optional[str] = None
+    local_files_only: bool = False
+    use_auth_token: bool = True
 
     @classmethod
     @implements(Relay)
@@ -120,7 +122,7 @@ class StableDiffusionRelay(Relay):
         logger.info(
             f"Loading pretrained model '{self.model.value}' with cache directory "
             f"'{Path(self.cache_dir).resolve()}'; will attempt to download the model if no "
-            "existing download is found."
+            "existing download is found (this requires a Hugging Face access token)."
         )
         device = torch.device(self.device)
         logger.info(f"Running on device '{device}'.")
@@ -128,9 +130,10 @@ class StableDiffusionRelay(Relay):
             self.model.value,
             scheduler=self.scheduler,
             torch_dtype=self.dtype.value,
-            use_auth_token=True,
+            use_auth_token=self.use_auth_token,
             cache_dir=self.cache_dir,
             revision=self.revision,
+            local_files_only=self.local_files_only,
         ).to(device)
 
         generator = (
