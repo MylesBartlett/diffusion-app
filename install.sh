@@ -8,4 +8,5 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 		pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116 --force
 	fi
 fi
+git config --global --add safe.directory /srv/galene0/shared/diffusion-app
 
