@@ -62,6 +62,7 @@ scipy = "^1.9.0"
 datasets = "^2.4.0"
 ftfy = "^6.1.1"
 wandb = "^0.13.2"
+submitit = "^1.4.5"
 
 [tool.poetry.extras]
 deepspeed = ["deepspeed", "triton"]
